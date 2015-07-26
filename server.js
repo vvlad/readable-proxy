@@ -2,12 +2,10 @@ var scrape = require("./scrape");
 var sanitizeResult = require("./sanitize").sanitizeResult;
 var express = require("express");
 var pkgInfo = require("./package.json");
-
+var cache = require("./cache")
 var app = express();
 exports.app = app;
 
-app.use(express.static("static"));
-app.use(express.static("node_modules/bootstrap/dist/css"));
 
 /**
  * Casts a query string arg into an actual boolean value.
@@ -26,14 +24,19 @@ app.use(function(req, res, next) {
   next();
 });
 
-app.get("/api", function(req, res) {
+
+var info = function(req, res) {
   res.json({
     name: pkgInfo.name,
     documentation: "https://github.com/n1k0/readable-proxy/blob/master/README.md",
     description: pkgInfo.description,
     version: pkgInfo.version
   });
-});
+}
+
+app.get("/", info);
+app.get("/api", info);
+
 
 app.get("/api/get", function(req, res) {
   var url = req.query.url,
@@ -42,12 +45,16 @@ app.get("/api/get", function(req, res) {
   if (!url) {
     return res.status(400).json({error: "Missing url parameter"});
   }
-  scrape(url, {userAgent: userAgent}).then(function(result) {
+
+  cache(url, function(){
+    return scrape(url, {userAgent: userAgent})
+  }).then(function(result){
     res.json(sanitize ? sanitizeResult(result) : result);
-  }).catch(function(err) {
+  }).catch(function(err){
     console.log(err);
     res.status(500).json({error: {message: err.message}});
   });
+
 });
 
 exports.serve = function() {
